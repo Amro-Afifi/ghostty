@@ -1,0 +1,61 @@
+name: cmux-fribidi-xcframework
+
+# Builds a GhosttyKit.xcframework with FriBidi RTL support, on a macOS-14
+# (Apple Silicon) runner where Zig 0.15.2 can link — local macOS 26 machines
+# cannot. Native arm64 only (system fribidi via brew is single-arch).
+
+on:
+  push:
+    branches: [cmux-fribidi]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - name: Checkout (recursive submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install fribidi + pkgconf
+        run: brew install fribidi pkgconf
+
+      - name: Install Zig 0.15.2
+        run: |
+          set -euo pipefail
+          ZIG=zig-aarch64-macos-0.15.2
+          curl -fL --retry 5 "https://ziglang.org/download/0.15.2/${ZIG}.tar.xz" -o /tmp/zig.tar.xz
+          mkdir -p /tmp/zigdir
+          tar -xf /tmp/zig.tar.xz -C /tmp/zigdir --strip-components=1
+          echo "/tmp/zigdir" >> "$GITHUB_PATH"
+
+      - name: Zig version
+        run: zig version
+
+      - name: Build GhosttyKit.xcframework (native arm64, FriBidi)
+        run: |
+          set -euo pipefail
+          zig build \
+            -Dcrash-report-subdir=cmux/crash \
+            -Demit-xcframework=true \
+            -Dxcframework-target=native \
+            -Doptimize=ReleaseFast \
+            -Dfribidi=true
+
+      - name: Locate + package xcframework
+        run: |
+          set -euo pipefail
+          XCF="$(find . -type d -name GhosttyKit.xcframework | head -1)"
+          echo "Found: $XCF"
+          test -n "$XCF"
+          ditto -c -k --sequesterRsrc --keepParent "$XCF" /tmp/GhosttyKit.xcframework.zip
+          ls -lh /tmp/GhosttyKit.xcframework.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhosttyKit-fribidi
+          path: /tmp/GhosttyKit.xcframework.zip
+          retention-days: 7
