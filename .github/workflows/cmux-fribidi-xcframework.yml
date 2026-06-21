@@ -48,6 +48,7 @@ jobs:
           zig build \
             -Dcrash-report-subdir=cmux/crash \
             -Demit-xcframework=true \
+            -Demit-macos-app=false \
             -Dxcframework-target=native \
             -Doptimize=ReleaseFast \
             -Dfribidi=true
